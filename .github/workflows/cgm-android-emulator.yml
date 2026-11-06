@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: cgm-emulator-${{ github.ref }}
+  group: cgm-emulator-bounded-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
