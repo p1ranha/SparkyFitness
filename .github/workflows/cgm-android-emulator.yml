@@ -90,10 +90,8 @@ jobs:
           script: |
             mkdir -p emulator-artifacts
             adb install -r SparkyFitnessMobile/android/app/build/outputs/apk/release/app-release.apk
-            test_status=0
-            python3 ci/cgm-emulator/test-native.py || test_status=$?
+            python3 ci/cgm-emulator/test-native.py || { timeout 20s adb logcat -d > emulator-artifacts/logcat.txt 2>&1; exit 1; }
             timeout 20s adb logcat -d > emulator-artifacts/logcat.txt 2>&1 || true
-            exit "$test_status"
       - name: Collect Android logs
         if: always()
         run: |

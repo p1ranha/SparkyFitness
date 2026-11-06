@@ -48,10 +48,8 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             adb install -r "$RUNNER_TEMP/cgm-built-app/SparkyFitnessMobile/android/app/build/outputs/apk/release/app-release.apk"
-            test_status=0
-            python3 ci/cgm-emulator/test-native.py || test_status=$?
+            python3 ci/cgm-emulator/test-native.py || { timeout 20s adb logcat -d > emulator-artifacts/logcat.txt 2>&1; exit 1; }
             timeout 20s adb logcat -d > emulator-artifacts/logcat.txt 2>&1 || true
-            exit "$test_status"
       - name: Upload native screenshots and results
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
