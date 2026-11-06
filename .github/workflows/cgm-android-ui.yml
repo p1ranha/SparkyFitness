@@ -1,0 +1,61 @@
+name: CGM Android UI verification
+on:
+  workflow_dispatch:
+  push:
+    branches: [cgm-emulator-validation]
+    paths:
+      - .github/workflows/cgm-android-ui.yml
+      - ci/cgm-emulator/test-native.py
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: cgm-ui-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  native-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - name: Enable emulator KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Reuse the unchanged feature APK from the successful native build
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download 42228798461 --repo p1ranha/SparkyFitness --name cgm-android-emulator --dir "$RUNNER_TEMP/cgm-built-app"
+          mkdir -p emulator-artifacts
+          echo 'APK built by run 42228798461 from d3cdaa580318154fc68e0e74ddaf3127a3fc7198; feature source 7e38586f196d1039c6fe779f45a4ef266a05aeba' > emulator-artifacts/provenance.txt
+      - name: Install pinned UI automation client
+        run: |
+          python3 -m venv "$RUNNER_TEMP/cgm-ui"
+          "$RUNNER_TEMP/cgm-ui/bin/pip" install uiautomator2==3.7.1
+          echo "$RUNNER_TEMP/cgm-ui/bin" >> "$GITHUB_PATH"
+      - name: Test native chart and settings on Android
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            adb install -r "$RUNNER_TEMP/cgm-built-app/SparkyFitnessMobile/android/app/build/outputs/apk/release/app-release.apk"
+            test_status=0
+            python3 ci/cgm-emulator/test-native.py || test_status=$?
+            timeout 20s adb logcat -d > emulator-artifacts/logcat.txt 2>&1 || true
+            exit "$test_status"
+      - name: Upload native screenshots and results
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cgm-android-ui
+          retention-days: 7
+          path: emulator-artifacts/
