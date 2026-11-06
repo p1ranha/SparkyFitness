@@ -4,6 +4,11 @@ on:
   workflow_dispatch:
   push:
     branches: [cgm-emulator-validation]
+    paths:
+      - SparkyFitnessMobile/**
+      - shared/**
+      - ci/cgm-emulator/*.ts*
+      - ci/cgm-emulator/install-harness.py
 
 permissions:
   contents: read
