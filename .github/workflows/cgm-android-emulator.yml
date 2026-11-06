@@ -2,6 +2,8 @@ name: CGM Android emulator validation
 
 on:
   workflow_dispatch:
+  push:
+    branches: [cgm-emulator-validation]
 
 permissions:
   contents: read
@@ -85,7 +87,7 @@ jobs:
           arch: x86_64
           target: google_apis
           profile: pixel_6
-          disable-animations: true
+          disable-animations: false
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: |
             mkdir -p emulator-artifacts
