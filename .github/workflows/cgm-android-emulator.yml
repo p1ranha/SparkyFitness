@@ -1,0 +1,90 @@
+name: CGM Android emulator validation
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [cgm-emulator-validation]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cgm-emulator-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CI: "1"
+      APP_VARIANT: dev
+      GRADLE_OPTS: -Dorg.gradle.jvmargs=-Xmx6144m -Dorg.gradle.caching=true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "20"
+          cache: pnpm
+      - uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: "17"
+      - name: Enable KVM for the Android emulator
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install the synthetic native UI harness in this checkout
+        run: python3 ci/cgm-emulator/install-harness.py
+      - name: Generate Android project
+        working-directory: SparkyFitnessMobile
+        run: pnpm exec expo prebuild --platform android --clean
+      - name: Create temporary test signing key
+        run: |
+          keytool -genkeypair -noprompt -keystore "$RUNNER_TEMP/cgm-test.keystore" -storepass android -keypass android -alias cgm-test -keyalg RSA -keysize 2048 -validity 30 -dname 'CN=CGM Test'
+      - name: Build self-contained x86_64 APK
+        working-directory: SparkyFitnessMobile/android
+        env:
+          SPARKY_RELEASE_STORE_FILE: ${{ runner.temp }}/cgm-test.keystore
+          SPARKY_RELEASE_STORE_PASSWORD: android
+          SPARKY_RELEASE_KEY_ALIAS: cgm-test
+          SPARKY_RELEASE_KEY_PASSWORD: android
+        run: ./gradlew :react-native-async-storage_async-storage:generateCodegenArtifactsFromSchema :app:assembleRelease -PreactNativeArchitectures=x86_64 --max-workers=2 --no-daemon --stacktrace
+      - name: Install pinned Android UI automation client
+        run: |
+          python3 -m venv "$RUNNER_TEMP/cgm-ui"
+          "$RUNNER_TEMP/cgm-ui/bin/pip" install uiautomator2==3.7.1
+          echo "$RUNNER_TEMP/cgm-ui/bin" >> "$GITHUB_PATH"
+      - name: Test the actual native chart and setting
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d
+        with:
+          api-level: 35
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            mkdir -p emulator-artifacts
+            adb install -r SparkyFitnessMobile/android/app/build/outputs/apk/release/app-release.apk
+            python3 ci/cgm-emulator/test-native.py
+      - name: Collect Android logs
+        if: always()
+        run: |
+          mkdir -p emulator-artifacts
+          adb logcat -d > emulator-artifacts/logcat.txt 2>&1 || true
+      - name: Upload test results, screenshots and APK
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cgm-android-emulator
+          retention-days: 7
+          path: |
+            emulator-artifacts/
+            SparkyFitnessMobile/android/app/build/outputs/apk/release/*.apk
