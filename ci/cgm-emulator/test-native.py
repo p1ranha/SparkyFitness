@@ -13,6 +13,11 @@ d = u2.connect()
 def wait_for(check, message, seconds=30):
     end = time.monotonic() + seconds
     while time.monotonic() < end:
+        # A cold CI emulator can show an ANR for its launcher over the app.
+        # Dismiss only that system-app dialog; never hide an ANR for our app.
+        if d(text="Pixel Launcher isn't responding").exists:
+            d(resourceId='android:id/aerr_close').click()
+            d.app_start(PACKAGE)
         if check():
             return
         time.sleep(.25)
