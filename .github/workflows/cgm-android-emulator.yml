@@ -92,12 +92,17 @@ jobs:
           script: |
             mkdir -p emulator-artifacts
             adb install -r SparkyFitnessMobile/android/app/build/outputs/apk/release/app-release.apk
-            python3 ci/cgm-emulator/test-native.py
+            test_status=0
+            python3 ci/cgm-emulator/test-native.py || test_status=$?
+            timeout 20s adb logcat -d > emulator-artifacts/logcat.txt 2>&1 || true
+            exit "$test_status"
       - name: Collect Android logs
         if: always()
         run: |
           mkdir -p emulator-artifacts
-          adb logcat -d > emulator-artifacts/logcat.txt 2>&1 || true
+          if [ ! -s emulator-artifacts/logcat.txt ]; then
+            timeout 20s adb logcat -d > emulator-artifacts/logcat.txt 2>&1 || true
+          fi
       - name: Upload test results, screenshots and APK
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
