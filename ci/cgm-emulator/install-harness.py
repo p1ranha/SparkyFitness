@@ -4,7 +4,7 @@ import shutil
 root=Path('SparkyFitnessMobile')
 (root/'ci-cgm-fixture').mkdir(exist_ok=True)
 for source in Path('ci/cgm-emulator').glob('*.ts*'):
-    text=source.read_text().replace("'../../src/","'../src/").replace("'../../global.css'","'../global.css'")
+    text=source.read_text().replace("../../src/","../src/").replace("../../global.css","../global.css")
     (root/'ci-cgm-fixture'/source.name).write_text(text)
 (root/'index.js').write_text("import {registerRootComponent} from 'expo';\nimport App from './ci-cgm-fixture/App.fixture';\nregisterRootComponent(App);\n")
 with (root/'metro.config.js').open('a') as f:
