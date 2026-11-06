@@ -45,7 +45,13 @@ try:
     wait_for(lambda: d(text='Blood glucose (CGM)').exists, 'CGM component did not load', 90)
     wait_for(lambda: d(textMatches='.*[0-9]{1,2}:[0-9]{2}.*mmol/L').exists, 'Default glucose readout missing')
     d.screenshot(str(out / '01-default-unit.png'))
+    # Let the cold emulator settle and use the actual accessible picker trigger.
+    # Animation scales are left enabled so native bottom sheets can settle normally.
+    time.sleep(2)
     click('Glucose unit')
+    time.sleep(2)
+    if not d(description='mg/dL').exists:
+        click('Glucose unit')
     wait_for(lambda: d(description='mg/dL').exists, 'Native unit picker did not open')
     click('mg/dL')
     wait_for(lambda: d(textMatches='.*[0-9]{1,2}:[0-9]{2}.*mg/dL').exists, 'Chart did not follow saved unit')
