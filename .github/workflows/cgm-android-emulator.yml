@@ -2,8 +2,6 @@ name: CGM Android emulator validation
 
 on:
   workflow_dispatch:
-  push:
-    branches: [cgm-emulator-validation]
 
 permissions:
   contents: read
