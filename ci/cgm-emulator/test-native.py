@@ -47,11 +47,17 @@ try:
     d.screenshot(str(out / '01-default-unit.png'))
     # Let the cold emulator settle and use the actual accessible picker trigger.
     # Animation scales are left enabled so native bottom sheets can settle normally.
-    time.sleep(2)
-    click('Glucose unit')
-    time.sleep(2)
-    if not d(description='mg/dL').exists:
-        click('Glucose unit')
+    wait_for(lambda: d(description='Glucose unit', clickable=True).exists,
+             'Native unit picker trigger is not ready', 60)
+    # Use only the actual accessible trigger, never the static settings title.
+    # Cold emulators can drop the first tap while the sheet measures its layout.
+    for attempt in range(3):
+        d(description='Glucose unit', clickable=True).click()
+        end = time.monotonic() + 8
+        while time.monotonic() < end and not d(description='mg/dL').exists:
+            time.sleep(.25)
+        if d(description='mg/dL').exists:
+            break
     wait_for(lambda: d(description='mg/dL').exists, 'Native unit picker did not open')
     click('mg/dL')
     wait_for(lambda: d(textMatches='.*[0-9]{1,2}:[0-9]{2}.*mg/dL').exists, 'Chart did not follow saved unit')

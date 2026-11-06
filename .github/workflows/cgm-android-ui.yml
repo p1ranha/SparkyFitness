@@ -29,9 +29,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh run download 42228798461 --repo p1ranha/SparkyFitness --name cgm-android-emulator --dir "$RUNNER_TEMP/cgm-built-app"
+          gh run download 42255800695 --repo p1ranha/SparkyFitness --name cgm-android-emulator --dir "$RUNNER_TEMP/cgm-built-app"
           mkdir -p emulator-artifacts
-          echo 'APK built by run 42228798461 from d3cdaa580318154fc68e0e74ddaf3127a3fc7198; feature source 7e38586f196d1039c6fe779f45a4ef266a05aeba' > emulator-artifacts/provenance.txt
+          echo 'APK built by run 42255800695 from b4b82cc341f4b5944107440167377b14e24619bd; feature source 9a2a5e6089c918aaa70bd27a465ed590ff23c3cc' > emulator-artifacts/provenance.txt
       - name: Install pinned UI automation client
         run: |
           python3 -m venv "$RUNNER_TEMP/cgm-ui"
