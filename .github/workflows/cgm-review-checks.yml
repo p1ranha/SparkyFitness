@@ -1,0 +1,47 @@
+name: CGM full validation and tests
+on:
+  workflow_dispatch:
+  push:
+    branches: [cgm-ci-validation]
+permissions:
+  contents: read
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        package:
+          [
+            SparkyFitnessFrontend,
+            SparkyFitnessMobile,
+            SparkyFitnessServer,
+            shared,
+          ]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@b906affcce14559ad1aafd4ab0e942779e9f58b1
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: "20"
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Validate package
+        run: pnpm --dir '${{ matrix.package }}' run validate
+      - name: Run complete test suite
+        if: ${{ matrix.package != 'shared' }}
+        run: pnpm --dir '${{ matrix.package }}' run test:ci
+      - name: Build web production bundle
+        if: ${{ matrix.package == 'SparkyFitnessFrontend' }}
+        run: pnpm --dir SparkyFitnessFrontend run build
+      - name: Upload coverage
+        if: ${{ always() && matrix.package != 'shared' }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cgm-coverage-${{ matrix.package }}
+          retention-days: 7
+          path: ${{ matrix.package }}/coverage/
