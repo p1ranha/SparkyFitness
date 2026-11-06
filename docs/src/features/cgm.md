@@ -1,4 +1,4 @@
-# Glucose readings from Apple Health
+# Glucose readings from Apple Health and Health Connect
 
 SparkyFitness can preserve timestamped blood glucose readings shared with Apple Health by Dexcom or another glucose app. Daily glucose minimum, maximum and average measurements continue to sync as before.
 
@@ -12,6 +12,10 @@ SparkyFitness can preserve timestamped blood glucose readings shared with Apple 
 The first sync imports up to 30 days within the selected sync range. Subsequent runs revisit the last two days within the selected sync range for late-arriving readings. Choose a range covering previous days to capture readings shared after midnight. Earlier daily summaries cannot reconstruct a CGM curve; timestamped readings must still be available in Apple Health to import them.
 
 This is a historical view. Dexcom controls when readings are shared with Apple Health; delays in Dexcom sharing, phone sync or SparkyFitness background execution also delay this chart. Use the Dexcom app for live readings and alarms.
+
+## Android Health Connect
+
+On Android, CGM apps that write Blood Glucose to Health Connect can supply the same timestamped timeline. Grant SparkyFitness Blood Glucose read access in Health Connect and enable **Blood Glucose** in Health Data Sync. The sync retains every reading in mmol/L and its source package when available, using the same bounded, account-scoped retry pipeline as iOS. Empty reads do not erase observations or certify missing history as imported. No new permission is required beyond the existing glucose toggle.
 
 ## Storage and sharing
 
@@ -42,15 +46,3 @@ On mobile, the chart opens with category/source settings, context-layer controls
 Timed context also appears in a compact **Events in view** strip with category icons, food carbohydrate amounts, and exercise start/end times. This strip follows zoom and pan; daily totals and entries without timestamps remain in event details. Mobile uses the app’s existing platform icons and themed data colors.
 
 An empty iOS glucose window is not certified as imported, because Apple Health can return an empty result when read access is denied. A later sync retries that bounded history after access is granted. Web and mobile read neighboring sample buckets and select observations by the current account timezone, so a timezone change does not hide readings near midnight.
-
-### Database constraint validation after upgrade
-
-The single CGM migration adds the expanded metric CHECK as `NOT VALID`, avoiding a scan of accumulated samples while holding the schema-change lock. It still rejects invalid metric values on all new inserts and updates immediately. Earlier validated constraints already restricted existing rows to the pre-glucose metric set.
-
-After the application startup migration has committed, an administrator can validate historical rows in a separate database transaction:
-
-```sql
-ALTER TABLE health_metric_samples VALIDATE CONSTRAINT chk_health_metric_samples_metric;
-```
-
-Run this as the database owner, outside the startup migration transaction. PostgreSQL uses a weaker lock for this validation, allowing ordinary reads and writes to continue. A fresh installation can use the same command. Replaying the migration safely restores the deferred-validation state, so run validation again after a replay. No second migration or manual schema-backup edit is required.
