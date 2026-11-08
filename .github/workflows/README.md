@@ -4,6 +4,15 @@ This directory contains all GitHub Actions workflows for the SparkyFitness proje
 
 ## Workflows Overview
 
+### Personal iPhone builds
+
+`ios-sideload.yml` manually builds device Release IPAs without Apple credentials.
+It uploads an iPhone-only package and a package retaining widgets and the Watch
+companion. Both need signing before installation. See
+[`scripts/ios-sideload.md`](../../scripts/ios-sideload.md) for Windows installation,
+free-account refresh requirements, and the current Sideloadly limitation on
+free-account Watch signing.
+
 ### CI/CD Workflows
 
 #### `ci-tests.yml`

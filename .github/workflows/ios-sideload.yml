@@ -1,0 +1,93 @@
+name: Build iPhone IPA for Sideloadly
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ios-sideload-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build personal iPhone app
+    runs-on: macos-latest
+    timeout-minutes: 100
+    env:
+      APP_VARIANT: development
+      EXPO_DEV_BUNDLE_IDENTIFIER: org.p1ranha.SparkyFitness.dev
+      IOS_APP_GROUP_DEV: group.org.p1ranha.SparkyFitness.dev
+      WIDGET_BUNDLE_IDENTIFIER: org.p1ranha.SparkyFitness.dev.ExpoWidgetsTarget
+      ENABLE_NFC_LINKS: "0"
+      CI: "1"
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: pnpm
+
+      - name: Show toolchain
+        run: xcodebuild -version
+
+      - name: Install workspace dependencies and patches
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate native iOS project
+        working-directory: SparkyFitnessMobile
+        run: pnpm exec expo prebuild --platform ios --clean
+
+      # Release embeds the JavaScript bundle. APP_VARIANT=development selects
+      # the separate identity/free-team entitlements, not a Metro-only binary.
+      - name: Compile for a physical iPhone without Apple credentials
+        working-directory: SparkyFitnessMobile
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ../sideload-output
+          xcodebuild \
+            -workspace ios/SparkyFitness.xcworkspace \
+            -scheme SparkyFitness \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build-sideload \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            DEVELOPMENT_TEAM="" \
+            build 2>&1 | tee ../sideload-output/xcodebuild.log
+
+      - name: Package IPA files and record source revision
+        run: bash scripts/package-ios-sideload.sh
+
+      - name: Upload installable packages
+        uses: actions/upload-artifact@v4
+        with:
+          name: SparkyFitness-iPhone-${{ github.run_number }}
+          path: |
+            sideload-output/*.ipa
+            sideload-output/*.plist
+            sideload-output/build-info.txt
+            scripts/ios-sideload.md
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ios-sideload-build-log-${{ github.run_number }}
+          path: sideload-output/xcodebuild.log
+          if-no-files-found: ignore
+          retention-days: 7
