@@ -35,6 +35,9 @@ import sys
 app = pathlib.Path(sys.argv[1])
 variant = sys.argv[2]
 sources = pathlib.Path('SparkyFitnessMobile/ios')
+for code in sorted([*app.rglob('*.framework'), *app.rglob('*.dylib')],
+                   key=lambda path: len(path.parts), reverse=True):
+    subprocess.run(['codesign', '--force', '--sign', '-', str(code)], check=True)
 for bundle in sorted([*app.rglob('*.appex'), *app.rglob('*.app'), app],
                      key=lambda path: len(path.parts), reverse=True):
     with (bundle / 'Info.plist').open('rb') as handle:
