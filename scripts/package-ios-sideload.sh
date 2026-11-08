@@ -29,12 +29,32 @@ for VARIANT in phone-only with-extensions; do
   python3 - "$APP" "$VARIANT" <<'PY'
 import pathlib
 import plistlib
+import json
 import subprocess
 import sys
 
 app = pathlib.Path(sys.argv[1])
 variant = sys.argv[2]
 sources = pathlib.Path('SparkyFitnessMobile/ios')
+entitlements_by_product = {}
+for project in sources.glob('*.xcodeproj/project.pbxproj'):
+    objects = json.loads(subprocess.check_output(
+        ['plutil', '-convert', 'json', '-o', '-', str(project)]))['objects']
+    for target in objects.values():
+        if target.get('isa') != 'PBXNativeTarget':
+            continue
+        product = objects[target['productReference']]['path']
+        configurations = objects[target['buildConfigurationList']]['buildConfigurations']
+        for reference in configurations:
+            configuration = objects[reference]
+            if configuration['name'] != 'Release':
+                continue
+            entitlement = configuration['buildSettings'].get('CODE_SIGN_ENTITLEMENTS')
+            if entitlement:
+                entitlement = entitlement.replace('$(SRCROOT)', str(sources.resolve()))
+                entitlement = entitlement.replace('${SRCROOT}', str(sources.resolve()))
+                path = pathlib.Path(entitlement)
+                entitlements_by_product[product] = path if path.is_absolute() else sources / path
 for code in sorted([*app.rglob('*.framework'), *app.rglob('*.dylib')],
                    key=lambda path: len(path.parts), reverse=True):
     subprocess.run(['codesign', '--force', '--sign', '-', str(code)], check=True)
@@ -53,7 +73,10 @@ for bundle in sorted([*app.rglob('*.appex'), *app.rglob('*.app'), app],
             entitlements = values
             break
     if entitlements is None:
-        candidates = list(sources.rglob(bundle.stem + '.entitlements'))
+        # Apple-targets writes generated.entitlements beside targets/watch,
+        # targets/widget, etc., outside ios/. Use the project's actual setting.
+        configured = entitlements_by_product.get(bundle.name)
+        candidates = [configured] if configured else list(sources.rglob(bundle.stem + '.entitlements'))
         if len(candidates) == 1:
             with candidates[0].open('rb') as handle:
                 entitlements = plistlib.load(handle)
